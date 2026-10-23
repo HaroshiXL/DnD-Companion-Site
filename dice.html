@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DnD Dice Roller</title>
+  <style>
+    :root {
+      --bg: #f4f5f9;
+      --surface: #ffffff;
+      --ink: #1c2233;
+      --muted: #5d6578;
+      --line: #c9cedd;
+      --accent: #3f4fd1;
+      --accent-ink: #ffffff;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14172a;
+        --surface: #1e2238;
+        --ink: #eceef7;
+        --muted: #a2a9c2;
+        --line: #353b5c;
+        --accent: #8b97ff;
+        --accent-ink: #14172a;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.75rem; margin: 0 0 16px; }
+    h2 { font-size: 1.1rem; margin: 0 0 12px; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .layout { display: grid; grid-template-columns: 110px 1fr; gap: 20px; }
+    fieldset { border: 0; margin: 0; padding: 0; }
+    legend { font-weight: 600; padding: 0; margin-bottom: 8px; }
+    .pick { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .pick input { width: 18px; height: 18px; accent-color: var(--accent); }
+    .row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .row[hidden] { display: none; }
+    .row label { min-width: 90px; }
+    input[type="number"] {
+      flex: 1;
+      min-width: 0;
+      padding: 8px 10px;
+      font: inherit;
+      color: var(--ink);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+    }
+    .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    button {
+      font: inherit;
+      font-weight: 600;
+      padding: 8px 18px;
+      border-radius: 6px;
+      border: 1px solid var(--accent);
+      cursor: pointer;
+      background: transparent;
+      color: var(--accent);
+    }
+    button.primary { background: var(--accent); color: var(--accent-ink); }
+    :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    #entries { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; min-height: 3rem; }
+    #entries .empty { grid-column: 1 / -1; color: var(--muted); }
+    .total { margin: 14px 0 0; font-size: 1.25rem; font-weight: 700; }
+    @media (max-width: 480px) {
+      .layout { grid-template-columns: 1fr; }
+      .pick-list { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+      #entries { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>DnD Dice Roller</h1>
+
+    <section class="panel layout">
+      <fieldset>
+        <legend>Dice</legend>
+        <div id="picker" class="pick-list"></div>
+      </fieldset>
+
+      <div>
+        <div id="rows"></div>
+        <div class="row">
+          <label for="modifier">Modifier:</label>
+          <input type="number" id="modifier" step="1">
+        </div>
+        <div class="actions">
+          <button type="button" id="roll" class="primary">Roll</button>
+          <button type="button" id="reset">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-live="polite">
+      <h2>Roll results</h2>
+      <div id="entries"></div>
+      <p class="total">Total: <output id="total"></output></p>
+    </section>
+  </main>
+
+  <script>
+// Port of the JavaFX DiceRoller. Same dice, same rules, same layout idea.
+const DIE_SIDES = [4, 6, 8, 10, 12, 20];
+const MAX_DICE = 100; // cap per die type so the output stays readable
+
+const picker = document.getElementById("picker");
+const rowsEl = document.getElementById("rows");
+const modifierEl = document.getElementById("modifier");
+const entriesEl = document.getElementById("entries");
+const totalEl = document.getElementById("total");
+
+// One checkbox and one input row per die type (same index = same die)
+const checkboxes = [];
+const fields = [];
+const rows = [];
+
+DIE_SIDES.forEach((sides) => {
+  // Checkbox on the left
+  const pick = document.createElement("label");
+  pick.className = "pick";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = sides === 20; // d20 starts selected
+  pick.append(cb, "d" + sides);
+  picker.append(pick);
+
+  // Quantity row
+  const row = document.createElement("div");
+  row.className = "row";
+  const label = document.createElement("label");
+  label.htmlFor = "qty-d" + sides;
+  label.textContent = "# of d" + sides + "s:";
+  const field = document.createElement("input");
+  field.type = "number";
+  field.id = "qty-d" + sides;
+  field.min = "0";
+  field.max = String(MAX_DICE);
+  field.step = "1";
+  row.append(label, field);
+  row.hidden = !cb.checked;
+  rowsEl.append(row);
+
+  // Show the row when checked, hide it (and clear it) when unchecked
+  cb.addEventListener("change", () => {
+    if (!cb.checked) field.value = "";
+    row.hidden = !cb.checked;
+  });
+
+  checkboxes.push(cb);
+  fields.push(field);
+  rows.push(row);
+});
+
+// Blank or invalid input becomes 0 instead of causing an error
+function parseField(el) {
+  const n = parseInt(el.value, 10);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function rollDie(sides) {
+  return Math.floor(Math.random() * sides) + 1;
+}
+
+function rollDice() {
+  const entries = [];
+  let total = 0;
+
+  DIE_SIDES.forEach((sides, i) => {
+    if (!checkboxes[i].checked) return; // skip dice that aren't selected
+
+    const quantity = Math.min(Math.max(parseField(fields[i]), 0), MAX_DICE);
+    if (quantity === 0) return;
+
+    const results = [];
+    for (let j = 0; j < quantity; j++) results.push(rollDie(sides));
+    const subtotal = results.reduce((a, b) => a + b, 0);
+
+    entries.push(`d${sides}: ${results.join(", ")}  (${subtotal})`);
+    total += subtotal;
+  });
+
+  const modifier = parseField(modifierEl);
+  if (modifier !== 0) {
+    entries.push("Modifier: " + (modifier > 0 ? "+" : "") + modifier);
+    total += modifier;
+  }
+
+  entriesEl.replaceChildren();
+  if (entries.length === 0) {
+    const p = document.createElement("p");
+    p.className = "empty";
+    p.textContent = "Enter a number of dice to roll.";
+    entriesEl.append(p);
+    totalEl.textContent = "";
+    return;
+  }
+
+  entries.forEach((text) => {
+    const div = document.createElement("div");
+    div.textContent = text;
+    entriesEl.append(div);
+  });
+  totalEl.textContent = String(total);
+}
+
+function resetAll() {
+  fields.forEach((f) => (f.value = ""));
+  modifierEl.value = "";
+  entriesEl.replaceChildren();
+  totalEl.textContent = "";
+}
+
+document.getElementById("roll").addEventListener("click", rollDice);
+document.getElementById("reset").addEventListener("click", resetAll);
+</script>
+</body>
+</html>
