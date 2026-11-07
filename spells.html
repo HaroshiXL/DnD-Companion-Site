@@ -7,17 +7,28 @@
   <style>
     body { font-family: Arial, sans-serif; background: #FBF6EE; color: #241A14; margin: 0; padding: 24px; }
     h1 { font-family: Georgia, serif; font-weight: normal; }
-    #search { width: 100%; max-width: 420px; padding: 10px; font-size: 16px; border: 1px solid #CBB89A; border-radius: 6px; }
+    #search { box-sizing: border-box; width: 100%; max-width: 420px; padding: 10px; font-size: 16px; border: 1px solid #CBB89A; border-radius: 6px; }
     #count { color: #6A5A4A; margin: 10px 0; }
-    .spell { background: #fff; border: 1px solid #E8DDCB; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; max-width: 700px; }
-    .spell h2 { font-family: Georgia, serif; font-size: 18px; color: #8B2635; margin: 0 0 4px; }
-    .meta { color: #6A5A4A; font-size: 13px; margin-bottom: 6px; }
+    .spell { background: #fff; border: 1px solid #E8DDCB; border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; max-width: 800px; overflow-wrap: anywhere; }
+    .spell h2 { font-family: Georgia, serif; font-size: 22px; color: #8B2635; margin: 0 0 8px; }
+    .meta { color: #6A5A4A; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+    .desc { font-size: 15px; line-height: 1.65; }
+    .desc p { margin: 0 0 12px; }
+    .desc h3, .desc h4 { font-size: 16px; margin: 20px 0 8px; }
+    .desc ul, .desc ol { padding-left: 24px; margin: 8px 0 14px; }
+    .desc li { margin-bottom: 6px; }
+    .desc table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0 18px; }
+    .desc th, .desc td { border: 1px solid #E8DDCB; padding: 9px 10px; text-align: left; vertical-align: top; }
+    .desc th { background: #F1E6D8; color: #49342A; }
+    .desc tr:nth-child(even) { background: #FBF6EE; }
+    .desc .table-wrap { overflow-x: auto; max-width: 100%; }
+    .higher-level { margin-top: 16px; border-top: 1px solid #E8DDCB; padding-top: 12px; font-size: 14px; line-height: 1.6; }
     #empty { color: #8B2635; display: none; }
   </style>
 </head>
 <body>
   <h1>Spells</h1>
-  <input id="search" type="text" placeholder="Search spells by name...">
+  <input id="search" type="search" placeholder="Search spells by name..." aria-label="Search spells by name">
   <p id="count"></p>
   <p id="empty">No spells found. Try a different name.</p>
   <div id="results"></div>
@@ -29,34 +40,61 @@
     const count = document.getElementById('count');
     const empty = document.getElementById('empty');
 
-    // Load the spell list once when the page opens
-    fetch('spells.json')
-      .then(r => r.json())
+    // The formatted file includes descriptionHtml for the ten complex spells.
+    fetch('spells_formatted.json')
+      .then(r => { if (!r.ok) throw new Error('File not found'); return r.json(); })
       .then(data => { spells = data; show(spells); })
-      .catch(() => { count.textContent = 'Could not load spells.json'; });
+      .catch(() => { count.textContent = 'Could not load spells_formatted.json'; });
 
-    // Search by name every time the user types
     box.addEventListener('input', () => {
       const text = box.value.trim().toLowerCase();
       show(spells.filter(s => s.name.toLowerCase().includes(text)));
     });
 
     function show(list) {
-      results.innerHTML = '';
+      results.replaceChildren();
       empty.style.display = list.length === 0 ? 'block' : 'none';
       count.textContent = list.length + ' spell(s)';
+
       list.slice(0, 50).forEach(s => {
-        const div = document.createElement('div');
+        const div = document.createElement('article');
         div.className = 'spell';
+        div.innerHTML = '<h2></h2><div class="meta"></div><div class="desc"></div>';
         const level = s.level === 0 ? 'Cantrip' : 'Level ' + s.level;
-        div.innerHTML =
-          '<h2></h2><div class="meta"></div><div class="desc"></div>';
         div.querySelector('h2').textContent = s.name;
         div.querySelector('.meta').textContent =
           level + ' ' + s.school + ' | ' + s.castingTime + ' | ' + s.spellRange +
-          ' | ' + s.components + ' | ' + s.duration + (s.concentration === 1 ? ' | Concentration' : '') +
+          ' | ' + s.components + ' | ' + s.duration +
+          (s.concentration === 1 && !String(s.duration).toLowerCase().includes('concentration') ? ' | Concentration' : '') +
           ' | ' + s.classes;
-        div.querySelector('.desc').textContent = s.description;
+
+        const description = div.querySelector('.desc');
+        if (s.descriptionHtml) {
+          // HTML comes from our own formatted JSON, not from user input.
+          description.innerHTML = s.descriptionHtml;
+          description.querySelectorAll('table').forEach(table => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-wrap';
+            table.replaceWith(wrapper);
+            wrapper.appendChild(table);
+          });
+        } else {
+          // Keep existing spell text readable without treating it as HTML.
+          String(s.description || '').split(/\n+/).filter(Boolean).forEach(part => {
+            const p = document.createElement('p');
+            p.textContent = part;
+            description.appendChild(p);
+          });
+        }
+        if (s.higherLevel) {
+          const higher = document.createElement('div');
+          higher.className = 'higher-level';
+          const heading = document.createElement('strong');
+          heading.textContent = 'Using a Higher-Level Spell Slot: ';
+          higher.appendChild(heading);
+          higher.appendChild(document.createTextNode(s.higherLevel));
+          div.appendChild(higher);
+        }
         results.appendChild(div);
       });
     }
