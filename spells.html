@@ -10,8 +10,11 @@
     #search { box-sizing: border-box; width: 100%; max-width: 420px; padding: 10px; font-size: 16px; border: 1px solid #CBB89A; border-radius: 6px; }
     #count { color: #6A5A4A; margin: 10px 0; }
     .spell { background: #fff; border: 1px solid #E8DDCB; border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; max-width: 800px; overflow-wrap: anywhere; }
-    .spell h2 { font-family: Georgia, serif; font-size: 22px; color: #8B2635; margin: 0 0 8px; }
-    .meta { color: #6A5A4A; font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+    .spell h2 { font-family: Georgia, serif; font-size: 22px; color: #8B2635; margin: 0 0 6px; }
+    .subtitle { color: #6A5A4A; font-size: 14px; font-style: italic; margin: 0 0 14px; }
+    .details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; margin-bottom: 18px; font-size: 14px; line-height: 1.5; }
+    .details p { margin: 0; }
+    .details strong { color: #49342A; }
     .desc { font-size: 15px; line-height: 1.65; }
     .desc p { margin: 0 0 12px; }
     .desc h3, .desc h4 { font-size: 16px; margin: 20px 0 8px; }
@@ -24,6 +27,7 @@
     .desc .table-wrap { overflow-x: auto; max-width: 100%; }
     .higher-level { margin-top: 16px; border-top: 1px solid #E8DDCB; padding-top: 12px; font-size: 14px; line-height: 1.6; }
     #empty { color: #8B2635; display: none; }
+    @media (max-width: 550px) { .details { grid-template-columns: 1fr; } body { padding: 14px; } }
   </style>
 </head>
 <body>
@@ -40,37 +44,48 @@
     const count = document.getElementById('count');
     const empty = document.getElementById('empty');
 
-    // The formatted file includes descriptionHtml for the ten complex spells.
     fetch('spells.json')
       .then(r => { if (!r.ok) throw new Error('File not found'); return r.json(); })
       .then(data => { spells = data; show(spells); })
-      .catch(() => { count.textContent = 'Could not load spells_formatted.json'; });
+      .catch(() => { count.textContent = 'Could not load spells.json'; });
 
     box.addEventListener('input', () => {
       const text = box.value.trim().toLowerCase();
       show(spells.filter(s => s.name.toLowerCase().includes(text)));
     });
 
+    function addDetail(container, label, value) {
+      const p = document.createElement('p');
+      const strong = document.createElement('strong');
+      strong.textContent = label + ': ';
+      p.appendChild(strong);
+      p.appendChild(document.createTextNode(value ?? '—'));
+      container.appendChild(p);
+    }
+
     function show(list) {
       results.replaceChildren();
       empty.style.display = list.length === 0 ? 'block' : 'none';
-      count.textContent = list.length + ' spell(s)';
+      count.textContent = list.length + ' spell(s)' + (list.length > 50 ? ' (showing first 50)' : '');
 
       list.slice(0, 50).forEach(s => {
         const div = document.createElement('article');
         div.className = 'spell';
-        div.innerHTML = '<h2></h2><div class="meta"></div><div class="desc"></div>';
+        div.innerHTML = '<h2></h2><p class="subtitle"></p><div class="details"></div><div class="desc"></div>';
         const level = s.level === 0 ? 'Cantrip' : 'Level ' + s.level;
         div.querySelector('h2').textContent = s.name;
-        div.querySelector('.meta').textContent =
-          level + ' ' + s.school + ' | ' + s.castingTime + ' | ' + s.spellRange +
-          ' | ' + s.components + ' | ' + s.duration +
-          (s.concentration === 1 && !String(s.duration).toLowerCase().includes('concentration') ? ' | Concentration' : '') +
-          ' | ' + s.classes;
+        div.querySelector('.subtitle').textContent = level + ' ' + s.school + ' (' + s.classes + ')';
+
+        const details = div.querySelector('.details');
+        addDetail(details, 'Casting Time', s.castingTime);
+        addDetail(details, 'Range', s.spellRange);
+        addDetail(details, 'Components', s.components);
+        const duration = String(s.duration || '');
+        addDetail(details, 'Duration', duration + (s.concentration === 1 && !duration.toLowerCase().includes('concentration') ? ' (Concentration)' : ''));
 
         const description = div.querySelector('.desc');
         if (s.descriptionHtml) {
-          // HTML comes from our own formatted JSON, not from user input.
+          // Only use HTML from your own trusted, locally maintained spell data.
           description.innerHTML = s.descriptionHtml;
           description.querySelectorAll('table').forEach(table => {
             const wrapper = document.createElement('div');
@@ -79,7 +94,6 @@
             wrapper.appendChild(table);
           });
         } else {
-          // Keep existing spell text readable without treating it as HTML.
           String(s.description || '').split(/\n+/).filter(Boolean).forEach(part => {
             const p = document.createElement('p');
             p.textContent = part;
