@@ -41,7 +41,7 @@
     const empty = document.getElementById('empty');
 
     // The formatted file includes descriptionHtml for the ten complex spells.
-    fetch('spells_formatted.json')
+    fetch('spells.json')
       .then(r => { if (!r.ok) throw new Error('File not found'); return r.json(); })
       .then(data => { spells = data; show(spells); })
       .catch(() => { count.textContent = 'Could not load spells_formatted.json'; });
