@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spells - D&D Companion</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #FBF6EE; color: #241A14; margin: 0; padding: 24px; }
+    h1 { font-family: Georgia, serif; font-weight: normal; }
+    #search { width: 100%; max-width: 420px; padding: 10px; font-size: 16px; border: 1px solid #CBB89A; border-radius: 6px; }
+    #count { color: #6A5A4A; margin: 10px 0; }
+    .spell { background: #fff; border: 1px solid #E8DDCB; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; max-width: 700px; }
+    .spell h2 { font-family: Georgia, serif; font-size: 18px; color: #8B2635; margin: 0 0 4px; }
+    .meta { color: #6A5A4A; font-size: 13px; margin-bottom: 6px; }
+    #empty { color: #8B2635; display: none; }
+  </style>
+</head>
+<body>
+  <h1>Spells</h1>
+  <input id="search" type="text" placeholder="Search spells by name...">
+  <p id="count"></p>
+  <p id="empty">No spells found. Try a different name.</p>
+  <div id="results"></div>
+
+  <script>
+    let spells = [];
+    const box = document.getElementById('search');
+    const results = document.getElementById('results');
+    const count = document.getElementById('count');
+    const empty = document.getElementById('empty');
+
+    // Load the spell list once when the page opens
+    fetch('spells.json')
+      .then(r => r.json())
+      .then(data => { spells = data; show(spells); })
+      .catch(() => { count.textContent = 'Could not load spells.json'; });
+
+    // Search by name every time the user types
+    box.addEventListener('input', () => {
+      const text = box.value.trim().toLowerCase();
+      show(spells.filter(s => s.name.toLowerCase().includes(text)));
+    });
+
+    function show(list) {
+      results.innerHTML = '';
+      empty.style.display = list.length === 0 ? 'block' : 'none';
+      count.textContent = list.length + ' spell(s)';
+      list.slice(0, 50).forEach(s => {
+        const div = document.createElement('div');
+        div.className = 'spell';
+        const level = s.level === 0 ? 'Cantrip' : 'Level ' + s.level;
+        div.innerHTML =
+          '<h2></h2><div class="meta"></div><div class="desc"></div>';
+        div.querySelector('h2').textContent = s.name;
+        div.querySelector('.meta').textContent =
+          level + ' ' + s.school + ' | ' + s.castingTime + ' | ' + s.spellRange +
+          ' | ' + s.components + ' | ' + s.duration + (s.concentration === 1 ? ' | Concentration' : '') +
+          ' | ' + s.classes;
+        div.querySelector('.desc').textContent = s.description;
+        results.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>
