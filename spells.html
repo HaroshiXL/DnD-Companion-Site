@@ -114,8 +114,8 @@
       }
     }
 
-    // ---------- SpellStore (storage: spells.json) ----------
-    class SpellStore {
+    // ---------- SpellStorage (storage: spells.json) ----------
+    class SpellStorage {
       #filePath;  // String
 
       constructor(filePath) {
@@ -134,7 +134,7 @@
     // ---------- SpellSearch (logic) ----------
     class SpellSearch {
       #spells = [];   // List<Spell>, multiplicity 0..*
-      #store;         // SpellStore, multiplicity 1
+      #store;         // SpellStorage, multiplicity 1
 
       constructor(store) {
         this.#store = store;
@@ -149,8 +149,8 @@
       }
     }
 
-    // ---------- SpellSearchScreen (this page) ----------
-    class SpellSearchScreen {
+    // ---------- SpellEntry (this page) ----------
+    class SpellEntry {
       #keyword = '';  // String
       #search;        // SpellSearch
 
@@ -210,9 +210,9 @@
     }
 
     // ---------- Start the page ----------
-    const store = new SpellStore('spells.json');
+    const store = new SpellStorage('spells.json');
     const search = new SpellSearch(store);
-    const screen = new SpellSearchScreen(search);
+    const screen = new SpellEntry(search);
     screen.onSearch('');  // show the first spells when the page opens
   </script>
 </body>
