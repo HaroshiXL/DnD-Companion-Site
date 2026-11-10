@@ -34,171 +34,84 @@
   <h1>Spells</h1>
   <input id="search" type="search" placeholder="Search spells by name..." aria-label="Search spells by name">
   <p id="count"></p>
-  <p id="empty"></p>
+  <p id="empty">No spells found. Try a different name.</p>
   <div id="results"></div>
 
   <script>
-    // ---------- Spell (matches the Spell class in the UML) ----------
-    class Spell {
-      #spellID;        // int
-      #rulesetID;      // int
-      #name;           // String
-      #level;          // int
-      #school;         // String
-      #castingTime;    // String
-      #spellRange;     // String
-      #components;     // String
-      #duration;       // String
-      #description;    // String
-      #higherLevel;    // String
-      #concentration;  // boolean
-      #classes;        // String
+    let spells = [];
+    const box = document.getElementById('search');
+    const results = document.getElementById('results');
+    const count = document.getElementById('count');
+    const empty = document.getElementById('empty');
 
-      constructor(data) {
-        this.#spellID = data.spellID;
-        this.#rulesetID = data.rulesetID;
-        this.#name = data.name;
-        this.#level = data.level;
-        this.#school = data.school;
-        this.#castingTime = data.castingTime;
-        this.#spellRange = data.spellRange;
-        this.#components = data.components;
-        this.#duration = data.duration;
-        this.#description = data.description;
-        this.#higherLevel = data.higherLevel;
-        this.#concentration = data.concentration === 1;  // JSON stores 0 or 1
-        this.#classes = data.classes;
-      }
+    fetch('spells.json')
+      .then(r => { if (!r.ok) throw new Error('File not found'); return r.json(); })
+      .then(data => { spells = data; show(spells); })
+      .catch(() => { count.textContent = 'Could not load spells.json'; });
 
-      // Makes text safe to put inside HTML
-      #escape(value) {
-        const div = document.createElement('div');
-        div.textContent = value ?? '\u2014';
-        return div.innerHTML;
-      }
+    box.addEventListener('input', () => {
+      const text = box.value.trim().toLowerCase();
+      show(spells.filter(s => s.name.toLowerCase().includes(text)));
+    });
 
-      // Used by SpellSearch to match the keyword against the spell name
-      matchesKeyword(keyword) {
-        return this.#name.toLowerCase().includes(keyword.toLowerCase());
-      }
-
-      // + getDetails(): String  (returns the HTML for one spell card)
-      getDetails() {
-        const level = this.#level === 0 ? 'Cantrip' : 'Level ' + this.#level;
-        const duration = String(this.#duration || '');
-        const showConcentration = this.#concentration && !duration.toLowerCase().includes('concentration');
-        const paragraphs = String(this.#description || '').split(/\n+/).filter(Boolean)
-          .map(part => '<p>' + this.#escape(part) + '</p>').join('');
-        const higher = this.#higherLevel
-          ? '<div class="higher-level"><strong>Using a Higher-Level Spell Slot: </strong>' +
-            this.#escape(this.#higherLevel) + '</div>'
-          : '';
-
-        return '<h2>' + this.#escape(this.#name) + '</h2>' +
-          '<p class="subtitle">' + this.#escape(level + ' ' + this.#school + ' (' + this.#classes + ')') + '</p>' +
-          '<div class="details">' +
-            '<p><strong>Casting Time: </strong>' + this.#escape(this.#castingTime) + '</p>' +
-            '<p><strong>Range: </strong>' + this.#escape(this.#spellRange) + '</p>' +
-            '<p><strong>Components: </strong>' + this.#escape(this.#components) + '</p>' +
-            '<p><strong>Duration: </strong>' + this.#escape(duration + (showConcentration ? ' (Concentration)' : '')) + '</p>' +
-          '</div>' +
-          '<div class="desc">' + paragraphs + '</div>' +
-          higher;
-      }
+    function addDetail(container, label, value) {
+      const p = document.createElement('p');
+      const strong = document.createElement('strong');
+      strong.textContent = label + ': ';
+      p.appendChild(strong);
+      p.appendChild(document.createTextNode(value ?? '—'));
+      container.appendChild(p);
     }
 
-    // ---------- SpellStore (storage: spells.json) ----------
-    class SpellStore {
-      #filePath;  // String
+    function show(list) {
+      results.replaceChildren();
+      empty.style.display = list.length === 0 ? 'block' : 'none';
+      count.textContent = list.length + ' spell(s)' + (list.length > 50 ? ' (showing first 50)' : '');
 
-      constructor(filePath) {
-        this.#filePath = filePath;
-      }
+      list.slice(0, 50).forEach(s => {
+        const div = document.createElement('article');
+        div.className = 'spell';
+        div.innerHTML = '<h2></h2><p class="subtitle"></p><div class="details"></div><div class="desc"></div>';
+        const level = s.level === 0 ? 'Cantrip' : 'Level ' + s.level;
+        div.querySelector('h2').textContent = s.name;
+        div.querySelector('.subtitle').textContent = level + ' ' + s.school + ' (' + s.classes + ')';
 
-      // + loadSpells(): List<Spell>
-      async loadSpells() {
-        const response = await fetch(this.#filePath);
-        if (!response.ok) throw new Error('File not found');
-        const data = await response.json();
-        return data.map(item => new Spell(item));
-      }
-    }
+        const details = div.querySelector('.details');
+        addDetail(details, 'Casting Time', s.castingTime);
+        addDetail(details, 'Range', s.spellRange);
+        addDetail(details, 'Components', s.components);
+        const duration = String(s.duration || '');
+        addDetail(details, 'Duration', duration + (s.concentration === 1 && !duration.toLowerCase().includes('concentration') ? ' (Concentration)' : ''));
 
-    // ---------- SpellSearch (logic) ----------
-    class SpellSearch {
-      #spells = [];     // List<Spell>, multiplicity 0..*
-      #store;           // SpellStore, multiplicity 1
-
-      constructor(store) {
-        this.#store = store;
-      }
-
-      // + searchByKeyword(keyword: String): List<Spell>
-      async searchByKeyword(keyword) {
-        if (this.#spells.length === 0) {
-          this.#spells = await this.#store.loadSpells();  // loads on the first search
+        const description = div.querySelector('.desc');
+        if (s.descriptionHtml) {
+          // Only use HTML from your own trusted, locally maintained spell data.
+          description.innerHTML = s.descriptionHtml;
+          description.querySelectorAll('table').forEach(table => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-wrap';
+            table.replaceWith(wrapper);
+            wrapper.appendChild(table);
+          });
+        } else {
+          String(s.description || '').split(/\n+/).filter(Boolean).forEach(part => {
+            const p = document.createElement('p');
+            p.textContent = part;
+            description.appendChild(p);
+          });
         }
-        return this.#spells.filter(spell => spell.matchesKeyword(keyword));
-      }
-    }
-
-    // ---------- SpellSearchScreen (this page) ----------
-    class SpellSearchScreen {
-      #keyword = '';   // String
-      #search;         // SpellSearch
-
-      constructor(search) {
-        this.#search = search;
-        document.getElementById('search').addEventListener('input', event => {
-          this.onSearch(event.target.value.trim());
-        });
-      }
-
-      // + onSearch(keyword: String): void
-      async onSearch(keyword) {
-        this.#keyword = keyword;
-        try {
-          const matches = await this.#search.searchByKeyword(keyword);
-          if (matches.length > 0) {
-            this.showResults(matches);
-          } else {
-            this.showEmptyState('No spells found. Try a different name.');
-          }
-        } catch (error) {
-          this.showEmptyState('Could not load spells.json');
+        if (s.higherLevel) {
+          const higher = document.createElement('div');
+          higher.className = 'higher-level';
+          const heading = document.createElement('strong');
+          heading.textContent = 'Using a Higher-Level Spell Slot: ';
+          higher.appendChild(heading);
+          higher.appendChild(document.createTextNode(s.higherLevel));
+          div.appendChild(higher);
         }
-      }
-
-      // + showResults(spells: List<Spell>): void
-      showResults(spells) {
-        document.getElementById('empty').style.display = 'none';
-        document.getElementById('count').textContent =
-          spells.length + ' spell(s)' + (spells.length > 50 ? ' (showing first 50)' : '');
-        const results = document.getElementById('results');
-        results.replaceChildren();
-        spells.slice(0, 50).forEach(spell => {
-          const card = document.createElement('article');
-          card.className = 'spell';
-          card.innerHTML = spell.getDetails();
-          results.appendChild(card);
-        });
-      }
-
-      // + showEmptyState(message: String): void
-      showEmptyState(message) {
-        document.getElementById('results').replaceChildren();
-        document.getElementById('count').textContent = '0 spell(s)';
-        const empty = document.getElementById('empty');
-        empty.textContent = message;
-        empty.style.display = 'block';
-      }
+        results.appendChild(div);
+      });
     }
-
-    // ---------- Start the page ----------
-    const store = new SpellStore('spells.json');
-    const search = new SpellSearch(store);
-    const screen = new SpellSearchScreen(search);
-    screen.onSearch('');   // show the first spells when the page opens
   </script>
 </body>
 </html>
