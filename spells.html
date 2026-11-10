@@ -7,15 +7,32 @@
   <style>
     body { font-family: Arial, sans-serif; background: #FBF6EE; color: #241A14; margin: 0; padding: 24px; }
     h1 { font-family: Georgia, serif; font-weight: normal; }
-    #search { width: 100%; max-width: 420px; padding: 10px; font-size: 16px; border: 1px solid #CBB89A; border-radius: 6px; }
+    #search { box-sizing: border-box; width: 100%; max-width: 420px; padding: 10px; font-size: 16px; border: 1px solid #CBB89A; border-radius: 6px; }
     #count { color: #6A5A4A; margin: 10px 0; }
-    .spell { background: #fff; border: 1px solid #E8DDCB; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; max-width: 700px; white-space: pre-wrap; }
+    .spell { background: #fff; border: 1px solid #E8DDCB; border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; max-width: 800px; overflow-wrap: anywhere; }
+    .spell h2 { font-family: Georgia, serif; font-size: 22px; color: #8B2635; margin: 0 0 6px; }
+    .subtitle { color: #6A5A4A; font-size: 14px; font-style: italic; margin: 0 0 14px; }
+    .details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; margin-bottom: 18px; font-size: 14px; line-height: 1.5; }
+    .details p { margin: 0; }
+    .details strong { color: #49342A; }
+    .desc { font-size: 15px; line-height: 1.65; }
+    .desc p { margin: 0 0 12px; }
+    .desc h3, .desc h4 { font-size: 16px; margin: 20px 0 8px; }
+    .desc ul, .desc ol { padding-left: 24px; margin: 8px 0 14px; }
+    .desc li { margin-bottom: 6px; }
+    .desc table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0 18px; }
+    .desc th, .desc td { border: 1px solid #E8DDCB; padding: 9px 10px; text-align: left; vertical-align: top; }
+    .desc th { background: #F1E6D8; color: #49342A; }
+    .desc tr:nth-child(even) { background: #FBF6EE; }
+    .desc .table-wrap { overflow-x: auto; max-width: 100%; }
+    .higher-level { margin-top: 16px; border-top: 1px solid #E8DDCB; padding-top: 12px; font-size: 14px; line-height: 1.6; }
     #empty { color: #8B2635; display: none; }
+    @media (max-width: 550px) { .details { grid-template-columns: 1fr; } body { padding: 14px; } }
   </style>
 </head>
 <body>
   <h1>Spells</h1>
-  <input id="search" type="text" placeholder="Search spells by name...">
+  <input id="search" type="search" placeholder="Search spells by name..." aria-label="Search spells by name">
   <p id="count"></p>
   <p id="empty"></p>
   <div id="results"></div>
@@ -53,19 +70,40 @@
         this.#classes = data.classes;
       }
 
+      // Makes text safe to put inside HTML
+      #escape(value) {
+        const div = document.createElement('div');
+        div.textContent = value ?? '\u2014';
+        return div.innerHTML;
+      }
+
       // Used by SpellSearch to match the keyword against the spell name
       matchesKeyword(keyword) {
         return this.#name.toLowerCase().includes(keyword.toLowerCase());
       }
 
-      // + getDetails(): String
+      // + getDetails(): String  (returns the HTML for one spell card)
       getDetails() {
         const level = this.#level === 0 ? 'Cantrip' : 'Level ' + this.#level;
-        return this.#name + '\n' +
-          level + ' ' + this.#school + ' | ' + this.#castingTime + ' | ' + this.#spellRange +
-          ' | ' + this.#components + ' | ' + this.#duration +
-          (this.#concentration ? ' | Concentration' : '') + ' | ' + this.#classes + '\n' +
-          this.#description;
+        const duration = String(this.#duration || '');
+        const showConcentration = this.#concentration && !duration.toLowerCase().includes('concentration');
+        const paragraphs = String(this.#description || '').split(/\n+/).filter(Boolean)
+          .map(part => '<p>' + this.#escape(part) + '</p>').join('');
+        const higher = this.#higherLevel
+          ? '<div class="higher-level"><strong>Using a Higher-Level Spell Slot: </strong>' +
+            this.#escape(this.#higherLevel) + '</div>'
+          : '';
+
+        return '<h2>' + this.#escape(this.#name) + '</h2>' +
+          '<p class="subtitle">' + this.#escape(level + ' ' + this.#school + ' (' + this.#classes + ')') + '</p>' +
+          '<div class="details">' +
+            '<p><strong>Casting Time: </strong>' + this.#escape(this.#castingTime) + '</p>' +
+            '<p><strong>Range: </strong>' + this.#escape(this.#spellRange) + '</p>' +
+            '<p><strong>Components: </strong>' + this.#escape(this.#components) + '</p>' +
+            '<p><strong>Duration: </strong>' + this.#escape(duration + (showConcentration ? ' (Concentration)' : '')) + '</p>' +
+          '</div>' +
+          '<div class="desc">' + paragraphs + '</div>' +
+          higher;
       }
     }
 
@@ -80,6 +118,7 @@
       // + loadSpells(): List<Spell>
       async loadSpells() {
         const response = await fetch(this.#filePath);
+        if (!response.ok) throw new Error('File not found');
         const data = await response.json();
         return data.map(item => new Spell(item));
       }
@@ -133,20 +172,21 @@
       // + showResults(spells: List<Spell>): void
       showResults(spells) {
         document.getElementById('empty').style.display = 'none';
-        document.getElementById('count').textContent = spells.length + ' spell(s)';
+        document.getElementById('count').textContent =
+          spells.length + ' spell(s)' + (spells.length > 50 ? ' (showing first 50)' : '');
         const results = document.getElementById('results');
-        results.innerHTML = '';
+        results.replaceChildren();
         spells.slice(0, 50).forEach(spell => {
-          const card = document.createElement('div');
+          const card = document.createElement('article');
           card.className = 'spell';
-          card.textContent = spell.getDetails();
+          card.innerHTML = spell.getDetails();
           results.appendChild(card);
         });
       }
 
       // + showEmptyState(message: String): void
       showEmptyState(message) {
-        document.getElementById('results').innerHTML = '';
+        document.getElementById('results').replaceChildren();
         document.getElementById('count').textContent = '0 spell(s)';
         const empty = document.getElementById('empty');
         empty.textContent = message;
