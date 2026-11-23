@@ -32,7 +32,7 @@
 </head>
 <body>
   <h1>Spells</h1>
-  <input id="search" type="search" placeholder="Search spells by name..." aria-label="Search spells by name">
+  <input id="search" type="search" placeholder="Search by spell or class name..." aria-label="Search by spell or class name">
   <p id="count"></p>
   <p id="empty">No spells found. Try a different name.</p>
   <div id="results"></div>
@@ -81,8 +81,15 @@
 
       // + matchesKeyword(keyword: String): boolean
       matchesKeyword(keyword) {
-        return String(this.#name).toLowerCase().includes(keyword.toLowerCase());
+        const search = keyword.toLowerCase();
+
+        return (
+          String(this.#name).toLowerCase().includes(search) ||
+          String(this.#classes).toLowerCase().split(',')
+            .some(c => c.trim().includes(search))
+        );
       }
+     
 
       // + getDetails(): String  (returns the HTML for one spell card)
       getDetails() {
@@ -169,7 +176,7 @@
           if (matches.length > 0) {
             this.showResults(matches);
           } else {
-            this.showEmptyState('No spells found. Try a different name.');
+            this.showEmptyState('No spells found. Try a different spell or class name.');
           }
         } catch (error) {
           this.showEmptyState('Could not load spells.json');
