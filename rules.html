@@ -83,9 +83,15 @@
       }
 
       matchesKeyword(keyword) {
-        const query = keyword.toLowerCase();
-        return String(this.#name).toLowerCase().includes(query) ||
-          String(this.#description).toLowerCase().includes(query);
+        const query = keyword.toLowerCase().trim();
+        const name = String(this.#name).toLowerCase();
+        const description = String(this.#description).toLowerCase();
+
+        if(query.length === 1) {
+          return name.startsWith(query);
+        }
+
+        return name.includes(query) || description.includes(query);
       }
 
       getDetails() {
