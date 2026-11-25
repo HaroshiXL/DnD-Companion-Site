@@ -166,6 +166,15 @@ DIE_SIDES.forEach((sides) => {
   rows.push(row);
 });
 
+// Karmic Dice option (BG3-style): applies to d20 rolls only
+let karmicDice = 0; // counts d20 rolls under 10
+const karmicPick = document.createElement("label");
+karmicPick.className = "pick";
+const karmicCheck = document.createElement("input");
+karmicCheck.type = "checkbox";
+karmicPick.append(karmicCheck, "Karmic Dice");
+picker.append(karmicPick);
+
 // Blank or invalid input becomes 0 instead of causing an error
 function parseField(el) {
   const n = parseInt(el.value, 10);
@@ -174,6 +183,25 @@ function parseField(el) {
 
 function rollDie(sides) {
   return Math.floor(Math.random() * sides) + 1;
+}
+
+// Boosted roll: 10 to 20
+function karmicRoll() {
+  return Math.floor(Math.random() * 11) + 10;
+}
+
+// One die roll; d20s follow the karmic rules when the box is checked
+function rollOne(sides) {
+  if (sides === 20 && karmicCheck.checked) {
+    if (karmicDice >= 10) {
+      karmicDice = 0;
+      return karmicRoll();
+    }
+    const result = rollDie(sides);
+    if (result < 10) karmicDice++;
+    return result;
+  }
+  return rollDie(sides);
 }
 
 function rollDice() {
@@ -187,7 +215,7 @@ function rollDice() {
     if (quantity === 0) return;
 
     const results = [];
-    for (let j = 0; j < quantity; j++) results.push(rollDie(sides));
+    for (let j = 0; j < quantity; j++) results.push(rollOne(sides));
     const subtotal = results.reduce((a, b) => a + b, 0);
 
     entries.push(`d${sides}: ${results.join(", ")}  (${subtotal})`);
