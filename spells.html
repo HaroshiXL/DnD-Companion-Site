@@ -99,7 +99,15 @@
 
       // + matchesKeyword(keyword: String): boolean
       matchesKeyword(keyword) {
-        return String(this.#name).toLowerCase().includes(keyword.toLowerCase()) || String(this.#classes).toLowerCase().includes(keyword.toLowerCase());
+          const query = keyword.toLowerCase().trim();
+          const name = String(this.#name).toLowerCase();
+          const classes = String(this.#classes).toLowerCase();
+
+          if (query.length === 1) {
+              return name.startsWith(query);
+          }
+
+          return name.includes(query) || classes.includes(query);
       }
 
       // + getDetails(): String  (returns the HTML for one spell card)
