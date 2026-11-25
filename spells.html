@@ -198,11 +198,11 @@
       showResults(spells) {
         document.getElementById('empty').style.display = 'none';
         document.getElementById('count').textContent =
-          spells.length + ' spell(s)' + (spells.length > 50 ? ' (showing first 50)' : '');
+          spells.length + ' spell(s)';
         const results = document.getElementById('results');
         results.replaceChildren();
 
-        spells.slice(0, 50).forEach(spell => {
+        spells.forEach(spell => {
           const card = document.createElement('article');
           card.className = 'spell';
           card.innerHTML = spell.getDetails();
