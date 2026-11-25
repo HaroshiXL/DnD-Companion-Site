@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rules - D&amp;D Companion</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #FBF6EE; color: #241A14; margin: 0; padding: 24px; }
+    h1 { font-family: Georgia, serif; font-weight: normal; }
+    #search { box-sizing: border-box; width: 100%; max-width: 420px; padding: 10px; font-size: 16px; border: 1px solid #CBB89A; border-radius: 6px; }
+    #count { color: #6A5A4A; margin: 10px 0; }
+    .rule { background: #fff; border: 1px solid #E8DDCB; border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; max-width: 800px; overflow-wrap: anywhere; }
+    .rule h2 { font-family: Georgia, serif; font-size: 22px; color: #8B2635; margin: 0 0 6px; }
+    .subtitle { color: #6A5A4A; font-size: 14px; font-style: italic; margin: 0 0 14px; }
+    .details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; margin-bottom: 18px; font-size: 14px; line-height: 1.5; }
+    .details p { margin: 0; }
+    .details strong { color: #49342A; }
+    .desc { font-size: 15px; line-height: 1.65; }
+    .desc p { margin: 0 0 12px; }
+    .desc h3, .desc h4 { font-size: 16px; margin: 20px 0 8px; }
+    .desc ul, .desc ol { padding-left: 24px; margin: 8px 0 14px; }
+    .desc li { margin-bottom: 6px; }
+    .desc table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 12px 0 18px; }
+    .desc th, .desc td { border: 1px solid #E8DDCB; padding: 9px 10px; text-align: left; vertical-align: top; }
+    .desc th { background: #F1E6D8; color: #49342A; }
+    .desc tr:nth-child(even) { background: #FBF6EE; }
+    .desc .table-wrap { overflow-x: auto; max-width: 100%; }
+    .higher-level { margin-top: 16px; border-top: 1px solid #E8DDCB; padding-top: 12px; font-size: 14px; line-height: 1.6; }
+    /* D&D-inspired reading layout: clear sections and real tables */
+    .rule { max-width: 960px; padding: 24px 28px; box-shadow: 0 2px 8px rgba(50,35,25,.045); }
+    .rule h2 { font-size: 27px; margin-bottom: 4px; }
+    .subtitle { font-size: 15px; margin-bottom: 22px; }
+    .details { font-size: 15px; gap: 9px 24px; margin-bottom: 24px; }
+    .desc { font-size: 16px; line-height: 1.7; }
+    .desc p { margin: 0 0 16px; }
+    .desc strong { color: #49342A; }
+    .desc h4 { font-family: Georgia,serif; font-size: 18px; margin: 20px 0 10px; }
+    .desc table { width: 100%; border-collapse: collapse; margin: 14px 0 20px; line-height: 1.5; }
+    .desc th { background: #F3EDE4; font-weight: 700; }
+    .desc th,.desc td { padding: 12px 14px; border: 1px solid #DED4C5; }
+    .desc tbody tr:nth-child(odd) { background: #F6F4F0; }
+    .desc tbody tr:nth-child(even) { background: #fff; }
+    .desc td:first-child { font-weight: 650; white-space: nowrap; }
+    .spell-table-wrap, .table-wrap { overflow-x: auto; max-width: 100%; }
+    .higher-level { font-size: 15px; }
+    @media (max-width:550px) { .rule { padding: 18px 16px; } .desc { font-size: 15px; } .desc th,.desc td { padding: 9px; } }
+    #empty { color: #8B2635; display: none; }
+    @media (max-width: 550px) { .details { grid-template-columns: 1fr; } body { padding: 14px; } }
+  
+    .desc td:first-child { white-space: normal; }
+    .desc p:last-child { margin-bottom: 0; }
+  </style>
+</head>
+<body>
+  <h1>Rules Glossary</h1>
+  <input id="search" type="search" placeholder="Search rules by name or keyword..." aria-label="Search rules by name or keyword">
+  <p id="count" aria-live="polite"></p>
+  <p id="empty" role="status">No rules found. Try another keyword.</p>
+  <div id="results"></div>
+  <footer style="max-width:960px;font-size:13px;line-height:1.5;color:#6A5A4A;margin-top:24px;">This work includes material from the System Reference Document 5.2.1 (“SRD 5.2.1”) by Wizards of the Coast LLC, available at <a href="https://www.dndbeyond.com/srd">https://www.dndbeyond.com/srd</a>. The SRD 5.2.1 is licensed under the Creative Commons Attribution 4.0 International License, available at <a href="https://creativecommons.org/licenses/by/4.0/legalcode">https://creativecommons.org/licenses/by/4.0/legalcode</a>.</footer>
+  <script>
+    class Rule {
+      #ruleID;
+      #rulesetID;
+      #name;
+      #sourcePage;
+      #description;
+      #descriptionHtml;
+
+      constructor(data) {
+        this.#ruleID = data.ruleID;
+        this.#rulesetID = data.rulesetID;
+        this.#name = data.name;
+        this.#sourcePage = data.sourcePage;
+        this.#description = data.description;
+        this.#descriptionHtml = data.descriptionHtml;
+      }
+
+      #escape(value) {
+        const div = document.createElement('div');
+        div.textContent = value ?? '';
+        return div.innerHTML;
+      }
+
+      matchesKeyword(keyword) {
+        const query = keyword.toLowerCase();
+        return String(this.#name).toLowerCase().includes(query) ||
+          String(this.#description).toLowerCase().includes(query);
+      }
+
+      getDetails() {
+        const description = this.#descriptionHtml || String(this.#description || '')
+          .split(/\n+/).filter(Boolean).map(part => '<p>' + this.#escape(part) + '</p>').join('');
+        return '<h2>' + this.#escape(this.#name) + '</h2>' +
+          '<p class="subtitle">SRD 5.2.1 · Page ' + this.#escape(this.#sourcePage) + '</p>' +
+          '<div class="desc">' + description + '</div>';
+      }
+    }
+
+    // ---------- RuleStorage (storage: rules.json) ----------
+    class RuleStorage {
+      #filePath;  // String
+
+      constructor(filePath) {
+        this.#filePath = filePath;
+      }
+
+      // + loadRules(): List<Rule>
+      async loadRules() {
+        const response = await fetch(this.#filePath);
+        if (!response.ok) throw new Error('File not found');
+        const data = await response.json();
+        return data.map(item => new Rule(item));
+      }
+    }
+
+    // ---------- RuleSearch (logic) ----------
+    class RuleSearch {
+      #rules = [];   // List<Rule>, multiplicity 0..*
+      #store;         // RuleStorage, multiplicity 1
+
+      constructor(store) {
+        this.#store = store;
+      }
+
+      // + searchByKeyword(keyword: String): List<Rule>
+      async searchByKeyword(keyword) {
+        if (this.#rules.length === 0) {
+          this.#rules = await this.#store.loadRules();  // loads on the first search
+        }
+        return this.#rules.filter(rule => rule.matchesKeyword(keyword));
+      }
+    }
+
+    // ---------- RuleEntry (this page) ----------
+    class RuleEntry {
+      #keyword = '';  // String
+      #search;        // RuleSearch
+
+      constructor(search) {
+        this.#search = search;
+        document.getElementById('search').addEventListener('input', event => {
+          this.onSearch(event.target.value.trim());
+        });
+      }
+
+      // + onSearch(keyword: String): void
+      async onSearch(keyword) {
+        this.#keyword = keyword;
+        try {
+          const matches = await this.#search.searchByKeyword(keyword);
+          if (keyword !== this.#keyword) return;
+          if (matches.length > 0) {
+            this.showResults(matches);
+          } else {
+            this.showEmptyState('No rules found. Try another keyword.');
+          }
+        } catch (error) {
+          this.showEmptyState('Could not load rules.json');
+        }
+      }
+
+      // + showResults(rules: List<Rule>): void
+      showResults(rules) {
+        document.getElementById('empty').style.display = 'none';
+        document.getElementById('count').textContent =
+          rules.length + ' rule(s)';
+        const results = document.getElementById('results');
+        results.replaceChildren();
+
+        rules.forEach(rule => {
+          const card = document.createElement('article');
+          card.className = 'rule';
+          card.innerHTML = rule.getDetails();
+          // Let wide tables scroll sideways instead of breaking the card
+          card.querySelectorAll('.desc table').forEach(table => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'table-wrap';
+            table.replaceWith(wrapper);
+            wrapper.appendChild(table);
+          });
+          results.appendChild(card);
+        });
+      }
+
+      // + showEmptyState(message: String): void
+      showEmptyState(message) {
+        document.getElementById('results').replaceChildren();
+        document.getElementById('count').textContent = '0 rule(s)';
+        const empty = document.getElementById('empty');
+        empty.textContent = message;
+        empty.style.display = 'block';
+      }
+    }
+
+    // ---------- Start the page ----------
+    const store = new RuleStorage('rules.json');
+    const search = new RuleSearch(store);
+    const screen = new RuleEntry(search);
+    screen.onSearch('');  // show all rules when the page opens
+  </script>
+</body>
+</html>
